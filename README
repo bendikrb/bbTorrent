@@ -1,0 +1,19 @@
+bbTorrent
+
+
+## rtorrent.rc
+
+# Append this to enable auto download (use watch folder from bbtorrent.conf)
+schedule = watch_directory,10,10,load_start=/my/watch/folder/*.torrent
+
+# Append this to enable auto-unpack
+system.method.set_key = event.download.finished,move_complete,"execute=bbtorrent,unpack,$d.get_base_path=;"
+
+## crontab
+# Checkout rss (more frequently at night time)
+*/5  0-7   *  *  *         bbtorrent checkout
+*/20 7-23  *  *  *         bbtorrent checkout
+
+# Sync local epguide
+0    6     *  *  0         bbtorrent sync
+

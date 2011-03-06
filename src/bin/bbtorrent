@@ -1,0 +1,141 @@
+#!/usr/bin/php
+<?php
+include("bbTorrent/bbTorrent.class.php");
+if (!class_exists("bbTorrent")) {
+	die();
+}
+set_include_path( get_include_path() . PATH_SEPARATOR . dirname( realpath($argv[0]) ) );
+
+/* Init our main class */
+$bbTorrent = new bbTorrent();
+$argv = $bbTorrent->init($argv);
+
+if ($bbTorrent->isError) {
+	die();
+}
+
+/* What to do? */
+$act = (isset($argv[0]) ? $argv[0] : '');
+
+switch($act) {
+	
+/**
+ * unpack
+ * usage:
+ * $ bbtorrent unpack
+ * $ bbtorrent unpack path/to/source/folder
+ * $ bbtorrent unpack path/to/source/folder /path/to/dest_folder/
+ */
+case 'unpack':
+	$from = false;
+	$to   = false;
+	if (isset($argv[1])) {
+		$from = $argv[1];
+	}
+	if (isset($argv[2])) {
+		$to   = $argv[2];
+	}
+	$bbTorrent->unpack($from,$to);
+	break;
+
+/**
+ * sync
+ * usage:
+ * $ bbtorrent sync
+ * $ bbtorrent sync Dexter
+ * $ bbtorrent sync Dexter "How i met your mother" Lost
+ */
+case 'sync':
+	$epguide =& epguide::instance($bbTorrent);
+	if (!$epguide) {
+		$bbTorrent->setError("No episode guide configured! Please check config file");
+		break;
+	}
+	array_shift($argv);
+	foreach($argv as $key=>$val) {
+		$argv[$key] = strtolower($val);
+	}
+	$epguide->sync($argv);
+	$epguide->syncReport();
+	break;
+	
+/**
+ * checkout
+ * 
+ * Checks out rss-feeds specified in config, and downloads the torrents we want
+ *
+ * Usage:
+ * $ bbtorrent checkout
+ * $ bbtorrent checkout torrentleech
+ */
+case 'checkout':
+	array_shift($argv);
+	foreach($argv as $key=>$val) {
+		$argv[$key] = strtolower($val);
+	}
+	$bbTorrent->checkRssFeeds($argv);
+	
+	break;
+case 'help':
+default:
+	$section = (isset($argv[1]) ? $argv[1] : '');
+	help_text($section);
+}
+
+
+
+
+
+function help_text($section = '') {
+	echo "\n";
+	echo "bbTorrent 0.10\n";
+	echo "\n";
+	switch($section) {
+	case 'sync':
+		
+		echo " EXAMPLES:\n\n";
+		echo " $ bbtorrent sync\n";
+ 		echo " $ bbtorrent sync Dexter\n";
+		echo " $ bbtorrent sync Dexter \"How i met your mother\" Lost\n";
+		
+		break;
+	case 'unpack':
+		
+		echo " EXAMPLES:\n\n";
+		echo " $ bbtorrent unpack\n";
+ 		echo " $ bbtorrent unpack path/to/source/folder\n";
+ 		echo " $ bbtorrent unpack path/to/source/folder /path/to/dest_folder/\n";
+ 		echo " $ bbtorrent unpack path/to/source/folder ../can/be/relative/too/\n";
+ 		
+		break;
+		
+	case 'checkout':
+		
+		echo " EXAMPLES:\n\n";
+		echo " $ bbtorrent checkout\n";
+ 		echo " $ bbtorrent checkout torrentleech\n";
+		break;
+		
+	default:
+		echo "Usage:\t";
+		echo "bbtorrent -<switch 1> -<switch N> <command>";
+		echo "\n\n";
+		echo "<Switches>\n";
+		echo "   v                Verbose\n";
+		echo "   c                Specify config file\n";
+		echo "\n";
+		echo "<Commands>\n";
+		
+		echo "   sync                      Sync local database with episode guide specified in config\n";
+		echo "   unpack                    Unpack all archives in current folder\n";
+//		echo "   unpack<from>              Unpack all archives in <from>\n";
+//		echo "   unpack<from><target>      Unpack all archives in <from> to <target>\n";
+		echo "   checkout                  Checks out all rss feeds\n";
+		echo "\n";
+		echo "   help <command>            Prints extended help\n";
+	
+	}
+	
+	die();
+}
+?>
