@@ -22,9 +22,6 @@ class bbTorrent {
 		$config_file = BBTORRENT_DEFAULT_CONFIG;
 		
 		if ($this->isCli()) {
-			//foreach($argv as $key=>$val) {
-			//	$argv[$key] = strtolower($val);
-			//}
 			
 			$params = array();
 			$params['c::'] = 'Config';
@@ -100,7 +97,8 @@ class bbTorrent {
 				'tracker'     => array()
 			),
 			'epguide' => array(
-				'name' => 'epguides_com'
+				'data_path'   => '/var/www/epguide_data',
+				'name'        => 'epguides_com'
 			)
 		);
 		if (!is_array($config_ini) && !empty($config_ini)) {

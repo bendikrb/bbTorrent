@@ -8,6 +8,8 @@ class epguideMyEpisodes extends epguide {
 	public function sync($filter = array()) {
 		$conf = $this->bbtorrent->getConfig('epguide');
 		
+		parent::sync();
+		
 		$url = 'http://www.myepisodes.com/rss.php?feed=unacquired';
 		$url .= '&uid=' . $conf['uid'];
 		$url .= '&pwdmd5=' . $conf['hash'];
@@ -26,6 +28,7 @@ class epguideMyEpisodes extends epguide {
 				continue;
 			$episode['link'] = $item['link'];
 			$episode['trailer'] = '';
+			$episode['type'] = 0;
 			$this->insertOrUpdate($episode);
 		}
 	}

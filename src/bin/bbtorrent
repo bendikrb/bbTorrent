@@ -59,6 +59,22 @@ case 'sync':
 	$epguide->syncReport();
 	break;
 	
+case 'addshow':
+
+	$epguide =& epguide::instance($bbTorrent);
+	if (!$epguide) {
+		$bbTorrent->setError("No episode guide configured! Please check config file");
+		break;
+	}
+	array_shift($argv);
+	foreach($argv as $key=>$val) {
+		$argv[$key] = strtolower($val);
+		$epguide->getShowData($val, true);
+	}
+	
+	break;
+	
+	
 /**
  * checkout
  * 

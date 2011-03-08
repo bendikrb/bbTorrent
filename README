@@ -1,19 +1,33 @@
-bbTorrent
+## 
+## bbTorrent
+## 
+
+1) Install dependencies
+
+ $ apt-get install php5 php5-cli php5-curl php5-mysql
+ # If you want a http-based episode guide with snacks too;
+ $ apt-get install apache2 libapache2-mod-php5
 
 
-## rtorrent.rc
+2) Install bbTorrent
 
-# Append this to enable auto download (use watch folder from bbtorrent.conf)
-schedule = watch_directory,10,10,load_start=/my/watch/folder/*.torrent
+ $ sudo ./install.php
 
-# Append this to enable auto-unpack
-system.method.set_key = event.download.finished,move_complete,"execute=bbtorrent,unpack,$d.get_base_path=;"
+3) Configure
 
-## crontab
-# Checkout rss (more frequently at night time)
-*/5  0-7   *  *  *         bbtorrent checkout
-*/20 7-23  *  *  *         bbtorrent checkout
+ ## rtorrent.rc
 
-# Sync local epguide
-0    6     *  *  0         bbtorrent sync
+ # Append this to enable auto download (use watch folder from bbtorrent.conf)
+ schedule = watch_directory,10,10,load_start=/my/watch/folder/*.torrent
+
+ # Append this to enable auto-unpack
+ system.method.set_key = event.download.finished,move_complete,"execute=bbtorrent,unpack,$d.get_base_path=;"
+
+ ## crontab
+ # Checkout rss (more frequently at night time)
+ */5  0-7   *  *  *         bbtorrent checkout
+ */20 7-23  *  *  *         bbtorrent checkout
+
+ # Sync local epguide
+ 0    6     *  *  0         bbtorrent sync
 

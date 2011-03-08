@@ -1,6 +1,8 @@
 <?php 
 include_once('rss_php.php');
 
+define('THETVDB_API_KEY', 'B918C68B9995AE81');
+
 class epguide {
 	
 	var $bbtorrent;
@@ -21,6 +23,11 @@ class epguide {
 		$this->bbtorrent =& $bbtorrent;
 	}
 	
+	/**
+	 * Enter description here ...
+	 * @param boolean $full_return
+	 * @return array $shows:
+	 */
 	public function &getShows($full_return = false) {
 		$shows =& $this->_shows;
 		$shows_data =& $this->_showsData;
@@ -40,6 +47,13 @@ class epguide {
 		return $shows;
 	}
 	
+	/**
+	 * Enter description here ...
+	 * @param int $from
+	 * @param int $to
+	 * @param int $limit
+	 * @return array
+	 */
 	public function getEpisodes($from, $to, $limit = false) {
 		$ret = array();
 		
@@ -73,6 +87,13 @@ class epguide {
 	}
 	
 	
+	/**
+	 * Enter description here ...
+	 * @param string $what
+	 * @param string $with
+	 * @param int $show_id
+	 * @return array $match
+	 */
 	public function match($what, $with, $show_id = false) {
 		switch($what) {
 		case 'show_title':
@@ -87,6 +108,11 @@ class epguide {
 		}
 	}
 	
+	/**
+	 * Enter description here ...
+	 * @param strnig $str
+	 * @return array|boolean
+	 */
 	public function matchShowTitle($str) {
 		$known_shows =& $this->getShows(true);
 		
@@ -127,6 +153,12 @@ class epguide {
 	}
 	
 	
+	/**
+	 * Enter description here ...
+	 * @param string $str
+	 * @param int $show_id
+	 * @return array|boolean:
+	 */
 	public function matchEpisode($str, $show_id) {
 		$ep = $this->extractEpisodeNo($str);
 		if ($ep === false)
@@ -143,6 +175,11 @@ class epguide {
 		return false;
 	}
 	
+	/**
+	 * Enter description here ...
+	 * @param string $str
+	 * @return array
+	 */
 	public function extractEpisodeNo($str) {
 		$filename = strtolower($str);
         
@@ -204,6 +241,11 @@ class epguide {
 	}
 	
 	
+	/**
+	 * Enter description here ...
+	 * @param array $archive
+	 * @return array|boolean
+	 */
 	public function matchMovie($archive) {
 		
 		$path = $archive['path'].'/'.$archive['nfo'];
@@ -247,12 +289,11 @@ class epguide {
 	 * @return boolean
 	 */
 	public function insertOrUpdate($episode) {
-		
-		$show_id = $this->getShowID($episode['show_title'], true);
-		if (!$show_id) {
+		$show_data = $this->getShowData($episode['show_title'], true);
+		if (!$show_data) {
 			return false;
 		}
-		$status = $this->createOrUpdateEpisode($show_id, $episode);
+		$status = $this->createOrUpdateEpisode($show_data, $episode);
 		if (!isset($this->_syncstatus[$this->toString()])) {
 			$this->_syncstatus[$this->toString()] = array(0 => 0, 1 => 0, 2 => 0);
 		}
@@ -266,10 +307,14 @@ class epguide {
 	 * @param array $meta
 	 * @return int $status (0 = error, 1 = updated, 2 = inserted)
 	 */
-	public function createOrUpdateEpisode($show_id, $meta) {
+	public function createOrUpdateEpisode($show_data, $meta) {
 		$db_link =& $this->bbtorrent->_db;
 		
+		$meta['thetvdb_episode_id'] = $this->theTvDbGetEpisodeId($show_data['thetvdb_series_id'], $meta['season'], $meta['episode']);
+		
 		$status = 0;
+		
+		$show_id = $show_data['id'];
 		
 		$query = "SELECT * FROM epguide_episodes WHERE show_id = '$show_id' AND season='" . $meta['season'] . "' AND episode='" . $meta['episode'] . "'";
 		$res = mysql_query($query, $db_link);
@@ -282,7 +327,6 @@ class epguide {
 			/* Episode air date has changed */
 			if ($row['time'] != $meta['time']) {
 				$this->bbtorrent->log("Episode #$episode_id (s" . $meta['season'].'e'.$meta['episode'] . ") - updated time: '" . date('Y-m-d', $meta['time']) . "' (was '" . date('Y-m-d', $row['time']) . "') Diff: " . ($row['time']-$meta['time']) );
-				$this->bbtorrent->log();
 				$update['time'] = 1;
 			}
 			/* Episode title has changed */
@@ -306,6 +350,12 @@ class epguide {
 				$update['trailer'] = 1;
 			}
 			
+			/* TheTvDB Episode ID has changed */
+			if ($row['thetvdb_episode_id'] != $meta['thetvdb_episode_id']) {
+				$this->bbtorrent->log("Episode #$episode_id (s" . $meta['season'].'e'.$meta['episode'] . ") - updated thetvdb episode ID: '" . $meta['thetvdb_episode_id'] . "' (was '" . $row['thetvdb_episode_id'] . "')");
+				$update['thetvdb_episode_id'] = 1;
+			}
+			
 			
 			if ($update) {
 				$query_updates = array();
@@ -319,6 +369,8 @@ class epguide {
 					$query_updates[] = "link = '" . mysql_escape_string($meta['link']) . "'";
 				if (isset($update['trailer']))
 					$query_updates[] = "trailer = '" . mysql_escape_string($meta['trailer']) . "'";
+				if (isset($update['thetvdb_episode_id']))
+					$query_updates[] = "thetvdb_episode_id = '" . $meta['thetvdb_episode_id'] . "'";
 				
 				$query_updates[] = "time_updated = UNIX_TIMESTAMP()";
 				
@@ -343,9 +395,10 @@ class epguide {
 				time_added,
 				source,
 				link,
-				trailer
+				trailer,
+				thetvdb_episode_id
 				) VALUES (
-				'%s','%s','%s','%s','%s','%s','%s',UNIX_TIMESTAMP(),'%s','%s','%s'
+				'%s','%s','%s','%s','%s','%s','%s',UNIX_TIMESTAMP(),'%s','%s','%s','%s'
 				);",
 				$show_id,
 				$meta['type'],
@@ -356,7 +409,8 @@ class epguide {
 				mysql_escape_string($meta['title']),
 				$this->toString(),
 				mysql_escape_string($meta['link']),
-				mysql_escape_string($meta['trailer'])
+				mysql_escape_string($meta['trailer']),
+				$meta['thetvdb_episode_id']
 			);
 			if (!mysql_query($query, $db_link)) {
 				$this->bbtorrent->setError("SQL: " . mysql_error($db_link) );
@@ -379,29 +433,39 @@ class epguide {
 	public function createShow($show_title, $opts = array()) {
 		$this->bbtorrent->log("Creating new show: '$show_title'", E_USER_NOTICE);
 		
+		/* TheTVDB.com */
+		$thetvdb_series_id = $this->theTvDbGetSeriesId($show_title);
+		
 		$db_link =& $this->bbtorrent->_db;
 		$query = sprintf("INSERT INTO epguide_shows (
 			title,
 			auto,
 			auto_download,
-			lastrun
+			lastrun,
+			thetvdb_series_id
 			) VALUES (
 			'%s',
 			'1',
 			'1',
+			'%s',
 			'%s'
 			);",
 			mysql_escape_string($show_title),
-			time()
+			time(),
+			$thetvdb_series_id
 		);
 		if (!mysql_query($query, $db_link)) {
 			$this->bbtorrent->setError("SQL: " . mysql_error($db_link) );
 			return -1;
 		}
-		//$this->log("SQL: $query");
-		$show_id = mysql_insert_id($db_link);
+		/* Fetch tvdb data */
+		$this->theTvDbGetSeriesData($thetvdb_series_id);
 		
-		return $show_id;
+		$show_id = mysql_insert_id($db_link);
+		$res = mysql_query("SELECT * FROM epguide_shows WHERE id='$show_id'", $db_link);
+		$show_data = mysql_fetch_assoc($res);
+		
+		return $show_data;
 	}
 	
 	
@@ -413,38 +477,43 @@ class epguide {
 	 * @param boolean $force = false
 	 * @return boolean|number
 	 */
-	public function getShowID($show_title, $force = false) {
+	public function getShowData($show_title, $force = false) {
 		$show_title = ucwords( strtolower($show_title) );
 		
 		if ( ($show_id = array_search($show_title, $this->_shows)) !== false ) {
-			return $show_id;
+			return $this->_showsData[$show_id];
 		}
 		$db_link =& $this->bbtorrent->_db;
 		
-		$res = mysql_query( sprintf("SELECT id FROM epguide_shows WHERE title LIKE '%s'", mysql_escape_string($show_title)), $db_link );
+		$res = mysql_query( sprintf("SELECT * FROM epguide_shows WHERE title LIKE '%s'", mysql_escape_string($show_title)), $db_link );
 		if (mysql_num_rows($res) > 0) {
-			$show_id = mysql_result($res, 0, 0);
+			$show_data = mysql_fetch_assoc($res);
 			mysql_query("UPDATE epguide_shows SET lastrun = UNIX_TIMESTAMP() WHERE id='$show_id'", $db_link);
 		} else if ($force) {
-			$show_id = $this->createShow($show_title);
+			$show_data = $this->createShow($show_title);
 		}
-		if ($show_id) {
-			$this->_shows[$show_id] = $show_title;
-			return $show_id;
+		
+		if (isset($show_data)) {
+			$this->_shows[$show_data['id']] = $show_title;
+			$this->_showsData[$show_data['id']] = $show_data;
+			return $show_data;
 		}
 		return false;
 	}
 	
 	
+	/**
+	 * Prints sync report to log
+	 */
 	public function syncReport() {
 		$stattxt = array('Skipped', 'Updated', 'Inserted');
 		
-		$this->bbtorrent->log("Sync report:");
+		$this->bbtorrent->log("Sync report:", E_USER_NOTICE);
 		$x = 0;
 		foreach($this->_syncstatus as $source => $stats) {
-			$this->bbtorrent->log($source . " sync report:");
+			$this->bbtorrent->log($source . " sync report:", E_USER_NOTICE);
 			foreach($stats as $status => $count) {
-				$this->bbtorrent->log(" - " . $stattxt[$status] . ":\t" . $count);
+				$this->bbtorrent->log(" - " . $stattxt[$status] . ":\t" . $count, E_USER_NOTICE);
 				$x++;
 			}
 		}
@@ -475,9 +544,221 @@ class epguide {
 	
 	/**
 	 * Syncs local database with external episode guide
+	 * @overridden
 	 * @uses epguide::insertOrUpdate()
 	 */
-	public function sync($filter = array()) { }
+	public function sync($filter = array()) {
+		$this->theTvDbInit();
+		
+	}
+	
+	
+	var $_thetvdb_mirror_url;
+	var $_thetvdb_update_data;
+	
+	public function theTvDbInit() {
+		
+		$rss = new rss_php;
+		/* Get a list of mirrors */
+		$rss->load('http://www.thetvdb.com/api/' . THETVDB_API_KEY . '/mirrors.xml');
+		$data = $rss->getRSS();
+		$mirrors = array();
+		foreach($data['Mirrors'] as $mirror) {
+			$mirrors[] = $mirror;
+		}
+		$mirror = $mirrors[mt_rand(0, count($mirrors)-1)];
+		
+		$this->_thetvdb_mirror_url = $mirror['mirrorpath'];
+		$this->_thetvdb_update_data = false;
+		
+		/* Get the current server time */
+		if (!$server_timestamp = $this->theTvDbGetTimestamp()) {
+			$rss->load('http://www.thetvdb.com/api/Updates.php?type=none');
+			$data = $rss->getRSS();
+			$server_timestamp = $data['Items']['Time'];
+			$this->theTvDbSetTimestamp($server_timestamp);
+		} else {
+			$this->bbtorrent->log("Retrieving update data from TheTVDB.com");
+			
+			$DOMDocument = new DOMDocument;
+			$DOMDocument->strictErrorChecking = false;
+			$DOMDocument->load('http://www.thetvdb.com/api/Updates.php?type=all&time=' . $server_timestamp);
+			
+			$this->_thetvdb_update_data = array(
+				'series'   => array(),
+				'episodes' => array()
+			);
+			
+			$nodes = $DOMDocument->getElementsByTagName('Series');
+			foreach($nodes as $node) {
+				$this->_thetvdb_update_data['series'][$node->textContent] = 1;
+			}
+			$nodes = $DOMDocument->getElementsByTagName('Series');
+			foreach($nodes as $node) {
+				$this->_thetvdb_update_data['episodes'][$node->textContent] = 1;
+			}
+		}
+	}
+	
+	public function theTvDbGetSeriesData($series_id, $force = false) {
+		$data_path = $this->bbtorrent->getConfig('epguide', 'data_path');
+		
+		if (!$this->_thetvdb_mirror_url) {
+			$this->theTvDbInit();
+		}
+		
+		if ($force == false) {
+			if (file_exists($data_path.'/series/' . $series_id . '/en.xml')) {
+				if (isset($this->_thetvdb_update_data[$series_id])) {
+					unset($this->_thetvdb_update_data[$series_id]);
+					$this->bbtorrent->log("Series data needs update!");
+				} else {
+					return $this->theTvDbParseSeriesData($series_id);
+				}
+			}
+		}
+		$zip_filename = '/tmp/' . $series_id . '.zip';
+		
+		$this->bbtorrent->log(" Getting series data from TheTVDB.com...");
+		
+		$url = $this->_thetvdb_mirror_url . '/api/' . THETVDB_API_KEY . '/series/' . $series_id . '/all/en.zip';
+		$ch = curl_init( $url );
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+		$result = curl_exec($ch);
+		$status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+		curl_close($ch);
+		
+		if (!$result) {
+			$this->bbtorrent->log("$url :: NO RESULT!!");
+		}
+		$fp = fopen($zip_filename, 'w');
+		fwrite($fp, $result);
+		fclose($fp);
+		
+		$extract_dir = $data_path . '/series';
+		if (!file_exists($extract_dir)) {
+			mkdir($extract_dir);
+		}
+		$extract_dir .= '/' . $series_id;
+		if (!file_exists($extract_dir)) {
+			mkdir($extract_dir);
+		}
+		
+		$this->bbtorrent->log(" Extracting series data...");
+		$files = array();
+		$zip = zip_open($zip_filename);
+		if ($zip) {
+			while ($zip_entry = zip_read($zip)) {
+				$file = basename(zip_entry_name($zip_entry));
+				$fp = fopen($extract_dir.'/'.basename($file), "w+");
+				if (zip_entry_open($zip, $zip_entry, "r")) {
+					$buf = zip_entry_read($zip_entry, zip_entry_filesize($zip_entry));
+					zip_entry_close($zip_entry);
+				}
+				fwrite($fp, $buf);
+				fclose($fp);
+			}
+			zip_close($zip);
+		}
+		
+		/* Cleanup */
+		unlink($zip_filename);
+		
+		return $this->theTvDbParseSeriesData($series_id);
+	}
+	
+	
+	public function theTvDbGetSeriesId($show_title) {
+		$show = array();
+		$DOMDocument = new DOMDocument;
+		$DOMDocument->strictErrorChecking = false;
+		$DOMDocument->load('http://www.thetvdb.com/api/GetSeries.php?seriesname=' . urlencode($show_title));
+		$nodes = $DOMDocument->getElementsByTagName('Series');
+		foreach($nodes as $x => $node) {
+			foreach($node->childNodes as $value) {
+				if (substr($value->nodeName,0,1) == '#')
+					continue;
+				$show[$value->nodeName] = $value->textContent;
+			}
+			break;
+		}
+		return (isset($show['seriesid']) ? $show['seriesid'] : 0);
+	}
+	
+	public function theTvDbGetEpisodeId($series_id, $season, $episodenumber) {
+		$show_data = $this->theTvDbGetSeriesData($series_id);
+		foreach($show_data['episodes'] as $episode) {
+			if ($episode['SeasonNumber'] == $season && $episode['EpisodeNumber'] == $episodenumber) {
+				return $episode['id'];
+			}
+		}
+		return 0;
+	}
+	
+	
+	public function theTvDbSetTimestamp($timestamp) {
+		$data_path = $this->bbtorrent->getConfig('epguide', 'data_path');
+		$filename = $data_path . '/thetvdb.json';
+		
+		$data = array('timestamp' => $timestamp);
+		$data = json_encode($data);
+		
+		$fp = fopen($filename, 'w');
+		fwrite($fp, $data);
+		fclose($fp);
+	}
+	
+	public function theTvDbGetTimestamp() {
+		$data_path = $this->bbtorrent->getConfig('epguide', 'data_path');
+		$filename = $data_path . '/thetvdb.json';
+		
+		if (!file_exists($filename)) {
+			return false;
+		}
+		$data = file_get_contents($filename);
+		if (strlen($data) == 0) {
+			return false;
+		}
+		$data = json_decode($data);
+		return $data->timestamp;
+	}
+	
+	
+	
+	private function theTvDbParseSeriesData($series_id) {
+		$data_path = $this->bbtorrent->getConfig('epguide', 'data_path');
+		
+		$filename = $data_path.'/series/' . $series_id . '/en.xml';
+		
+		$DOMDocument = new DOMDocument;
+		$DOMDocument->strictErrorChecking = false;
+		$DOMDocument->load($filename);
+		
+		$nodes = $DOMDocument->getElementsByTagName('Series')->item(0);
+		$show_data = array();
+		foreach($nodes->childNodes as $value) {
+			if (substr($value->nodeName,0,1) == '#')
+				continue;
+			$show_data[$value->nodeName] = $value->textContent;
+		}
+		
+		$episodes = array();
+		$nodes = $DOMDocument->getElementsByTagName('Episode');
+		foreach($nodes as $episode) {
+			$episode_id = $episode->getElementsByTagName('id')->item(0)->textContent;
+			$episodes[$episode_id] = array();
+			foreach($episode->childNodes as $value) {
+				if (substr($value->nodeName,0,1) == '#')
+					continue;
+				$episodes[$episode_id][$value->nodeName] = $value->textContent;
+			}
+		}
+		return array(
+			'show_data' => $show_data,
+			'episodes'  => $episodes
+		);
+	}
+	
 	
 	public function toString() {
 		return '';

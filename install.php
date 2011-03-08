@@ -9,7 +9,8 @@ $MY_PATH = dirname(__FILE__);
 $LIB_PATH = '/usr/share/php';
 $BIN_PATH = '/usr/local/bin';
 $WWW_PATH = '/var/www/epguide';
-$CONF_PATH = '/etc';
+$DATA_PTH = '/var/www/epguide_data';
+$CONF_PATH = '/etc/bbtorrent.conf';
 
 $DB_CONF = array(
 	'hostname' => 'localhost',
@@ -35,13 +36,13 @@ while (!$configured) {
 	if (!empty($input)) {
 		$BIN_PATH = $input;
 	}
-	
+	/*
 	echo "Config path [$CONF_PATH]: ";
 	$input = getinput();
 	if (!empty($input)) {
 		$CONF_PATH = $input;
 	}
-	
+	*/
 	echo "Install episode guide? [yes|no]: ";
 	$input = getinput();
 	if ($input == 'yes') {
@@ -49,6 +50,11 @@ while (!$configured) {
 		$input = getinput();
 		if (!empty($input)) {
 			$WWW_PATH = $input;
+		}
+		echo "Data path [$DATA_PATH]: ";
+		$input = getinput();
+		if (!empty($input)) {
+			$DATA_PATH = $input;
 		}
 	} else {
 		$WWW_PATH = '';
@@ -190,17 +196,14 @@ function install() {
 	}
 	
 	echo "Installing database...\n";
-	/*
-	$link = mysql_connect($DB_CONF['hostname'], $DB_CONF['username'], $DB_CONF['password']);
-	mysql_select_db($DB_CONF['database']);
-	*/
+	
 	$cmd = 'mysql -h' . $DB_CONF['hostname'] . ' -u' . $DB_CONF['username'] . ' -p' . $DB_CONF['password'] . " " . $DB_CONF['database'] . ' < ';
 	$cmd .= $MY_PATH.'/src/bbtorrent.sql';
 	exec($cmd);
 	
 	echo "Installing config...\n";
 	$srcfile = $MY_PATH . '/src/bbtorrent.conf';
-	$dstfile = $CONF_PATH . '/bbtorrent.conf';
+	$dstfile = $CONF_PATH;
 	echo "  `".basename($srcfile) . "` -> `$dstfile`\n";
 	copy($srcfile, $dstfile);
 	
@@ -212,10 +215,6 @@ function install() {
 	echo "    password = \"" . $DB_CONF['password'] . "\"\n";
 	echo "    database = \"" . $DB_CONF['database'] . "\"\n";
 	echo "\n";
-	//print_r($src_files);
-	
-	//mkdir($LIB_PATH.'/bbTorrent');
-	//copy($SRC['bin'], $BIN_PATH.'/bbtorrent');
 	
 }
 
