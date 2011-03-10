@@ -310,8 +310,6 @@ class epguide {
 	public function createOrUpdateEpisode($show_data, $meta) {
 		$db_link =& $this->bbtorrent->_db;
 		
-		$meta['thetvdb_episode_id'] = $this->theTvDbGetEpisodeId($show_data['thetvdb_series_id'], $meta['season'], $meta['episode']);
-		
 		$status = 0;
 		
 		$show_id = $show_data['id'];
@@ -350,11 +348,17 @@ class epguide {
 				$update['trailer'] = 1;
 			}
 			
+			if (!empty($row['thetvdb_episode_id'])) {
+				$thetvdb_episode_data = $this->theTvDbGetEpisodeData($row['thetvdb_episode_id']);
+			}
+			
 			/* TheTvDB Episode ID has changed */
+			/*
 			if ($row['thetvdb_episode_id'] != $meta['thetvdb_episode_id']) {
 				$this->bbtorrent->log("Episode #$episode_id (s" . $meta['season'].'e'.$meta['episode'] . ") - updated thetvdb episode ID: '" . $meta['thetvdb_episode_id'] . "' (was '" . $row['thetvdb_episode_id'] . "')");
 				$update['thetvdb_episode_id'] = 1;
 			}
+			*/
 			
 			
 			if ($update) {
@@ -369,8 +373,8 @@ class epguide {
 					$query_updates[] = "link = '" . mysql_escape_string($meta['link']) . "'";
 				if (isset($update['trailer']))
 					$query_updates[] = "trailer = '" . mysql_escape_string($meta['trailer']) . "'";
-				if (isset($update['thetvdb_episode_id']))
-					$query_updates[] = "thetvdb_episode_id = '" . $meta['thetvdb_episode_id'] . "'";
+//				if (isset($update['thetvdb_episode_id']))
+//					$query_updates[] = "thetvdb_episode_id = '" . $meta['thetvdb_episode_id'] . "'";
 				
 				$query_updates[] = "time_updated = UNIX_TIMESTAMP()";
 				
@@ -383,6 +387,7 @@ class epguide {
 				$status = 1;
 			}
 		} else {
+			$meta['thetvdb_episode_id'] = $this->theTvDbGetEpisodeId($show_data['thetvdb_series_id'], $meta['season'], $meta['episode']);
 			
 			$query = sprintf("INSERT into epguide_episodes (
 				show_id,
@@ -458,12 +463,13 @@ class epguide {
 			$this->bbtorrent->setError("SQL: " . mysql_error($db_link) );
 			return -1;
 		}
-		/* Fetch tvdb data */
-		$this->theTvDbGetSeriesData($thetvdb_series_id);
-		
 		$show_id = mysql_insert_id($db_link);
 		$res = mysql_query("SELECT * FROM epguide_shows WHERE id='$show_id'", $db_link);
 		$show_data = mysql_fetch_assoc($res);
+		
+		/* Fetch tvdb data */
+		$show_data['thetvdb_data'] = $this->theTvDbGetSeriesData($thetvdb_series_id);
+		
 		
 		return $show_data;
 	}
@@ -494,8 +500,12 @@ class epguide {
 		}
 		
 		if (isset($show_data)) {
+			if (!isset($show_data['thetvdb_data'])) {
+				$show_data['thetvdb_data'] = ($show_data['thetvdb_series_id'] ? $this->theTvDbGetSeriesData($show_data['thetvdb_series_id']) : null);
+			}
 			$this->_shows[$show_data['id']] = $show_title;
 			$this->_showsData[$show_data['id']] = $show_data;
+			
 			return $show_data;
 		}
 		return false;
@@ -588,7 +598,6 @@ class epguide {
 				'series'   => array(),
 				'episodes' => array()
 			);
-			
 			$nodes = $DOMDocument->getElementsByTagName('Series');
 			foreach($nodes as $node) {
 				$this->_thetvdb_update_data['series'][$node->textContent] = 1;
@@ -609,8 +618,8 @@ class epguide {
 		
 		if ($force == false) {
 			if (file_exists($data_path.'/series/' . $series_id . '/en.xml')) {
-				if (isset($this->_thetvdb_update_data[$series_id])) {
-					unset($this->_thetvdb_update_data[$series_id]);
+				if (isset($this->_thetvdb_update_data['series'][$series_id])) {
+					unset($this->_thetvdb_update_data['series'][$series_id]);
 					$this->bbtorrent->log("Series data needs update!");
 				} else {
 					return $this->theTvDbParseSeriesData($series_id);
@@ -695,6 +704,68 @@ class epguide {
 		return 0;
 	}
 	
+	public function theTvDbGetEpisodeData($episode_id, $force = false) {
+		
+		$data_path = $this->bbtorrent->getConfig('epguide', 'data_path');
+		if (!$this->_thetvdb_mirror_url) {
+			$this->theTvDbInit();
+		}
+		
+		if ($force == false) {
+			if (file_exists($data_path.'/episodes/' . $episode_id . '/en.xml')) {
+				if (isset($this->_thetvdb_update_data['episodes'][$episode_id])) {
+					unset($this->_thetvdb_update_data['episodes'][$episode_id]);
+					$this->bbtorrent->log("Episode data needs update!");
+				} else {
+					return $this->theTvDbParseEpisodeData($episode_id);
+				}
+			}
+		}
+		$this->bbtorrent->log(" Getting episode data from TheTVDB.com...");
+		
+		$url = $this->_thetvdb_mirror_url . '/api/' . THETVDB_API_KEY . '/episodes/' . $episode_id . '/en.xml';
+		$ch = curl_init( $url );
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+		$result = curl_exec($ch);
+		$status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+		curl_close($ch);
+		if (!$result) {
+			$this->bbtorrent->log("$url :: NO RESULT!!");
+		}
+		$xml_filename = $data_path . '/episodes';
+		if (!file_exists($xml_filename)) {
+			mkdir($xml_filename);
+		}
+		$xml_filename .= '/' . $episode_id;
+		if (!file_exists($xml_filename)) {
+			mkdir($xml_filename);
+		}
+		$xml_filename .= '/en.xml';
+		$fp = fopen($xml_filename, 'w');
+		fwrite($fp, $result);
+		fclose($fp);
+		
+		return $this->theTvDbParseEpisodeData($episode_id);
+	}
+	
+	private function theTvDbSaveEpisodeData($episode_id, &$DOM) {
+		$data_path = $this->bbtorrent->getConfig('epguide', 'data_path');
+		
+		$xml_filename = $data_path . '/episodes';
+		if (!file_exists($xml_filename)) {
+			mkdir($xml_filename);
+		}
+		$xml_filename .= '/' . $episode_id;
+		if (!file_exists($xml_filename)) {
+			mkdir($xml_filename);
+		}
+		$xml_filename .= '/en.xml';
+		
+		$xml = $DOM->saveXML();
+		$fp = fopen($xml_filename, 'w');
+		fwrite($fp, $xml);
+		fclose($fp);
+	}
 	
 	public function theTvDbSetTimestamp($timestamp) {
 		$data_path = $this->bbtorrent->getConfig('epguide', 'data_path');
@@ -752,11 +823,38 @@ class epguide {
 					continue;
 				$episodes[$episode_id][$value->nodeName] = $value->textContent;
 			}
+			$DOMEpisode = DOMDocument::loadXML('<Data>' . $DOMDocument->saveXML($episode) . '</Data>');
+			
+			$this->theTvDbSaveEpisodeData($episode_id, $DOMEpisode);
 		}
 		return array(
 			'show_data' => $show_data,
 			'episodes'  => $episodes
 		);
+	}
+	
+	private function theTvDbParseEpisodeData($episode_id) {
+		$data_path = $this->bbtorrent->getConfig('epguide', 'data_path');
+		
+		$filename = $data_path.'/episodes/' . $episode_id . '/en.xml';
+		
+		if (!file_exists($filename)) {
+			$this->bbtorrent->log(" File `$filename` does not exist!", E_USER_WARNING);
+			return false;
+		}
+		
+		$DOMDocument = new DOMDocument;
+		$DOMDocument->strictErrorChecking = false;
+		$DOMDocument->load($filename);
+		
+		$nodes = $DOMDocument->getElementsByTagName('Data')->item(0);
+		$episode_data = array();
+		foreach($nodes->childNodes as $value) {
+			if (substr($value->nodeName,0,1) == '#')
+				continue;
+			$episode_data[$value->nodeName] = $value->textContent;
+		}
+		return $episode_data;
 	}
 	
 	

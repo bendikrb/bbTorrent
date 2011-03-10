@@ -70,8 +70,8 @@ case 'addshow':
 	foreach($argv as $key=>$val) {
 		$argv[$key] = strtolower($val);
 		$epguide->getShowData($val, true);
+		$epguide->sync($val);
 	}
-	
 	break;
 	
 	

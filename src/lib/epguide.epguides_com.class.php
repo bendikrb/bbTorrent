@@ -5,10 +5,13 @@ class epguideEpguidesCom extends epguide {
 	
 	public function sync($filter = array()) {
 		
+		parent::sync();
+		
 		$shows =& $this->getShows(true);
 		foreach($shows as $show_id => $show) {
 			if (count($filter) > 0 && !in_array(strtolower($show['title']), $filter))
 				continue;
+			$this->bbtorrent->log(" Syncing " . $show['title']);
 			$episodes = $this->_fetchEpisodes($show['title'], $show['alias']);
 			foreach($episodes as $episode) {
 				$episode['show_title'] = $show['title'];
@@ -16,10 +19,6 @@ class epguideEpguidesCom extends epguide {
 			}
 			/* TODO: needs to update `lastrun` in epguide_shows */
 		}
-	}
-	public function test($param) {
-		$ret = $this->_fetchEpisodes($param);
-		print_r($ret[0]);
 	}
 	
 	public function toString() {
