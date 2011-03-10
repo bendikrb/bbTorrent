@@ -13,6 +13,7 @@ class bbTorrent {
 	
 	var $_log;
 	var $_db;
+	var $debug = 0;
 	
 	public function __construct() {
 		register_shutdown_function(array($this, 'shutdown'));
@@ -28,6 +29,7 @@ class bbTorrent {
 			$params['v'] = 'Verbose';
 			$params['e'] = 'Extract';
 			$params['u'] = 'Update';
+			$params['d'] = 'Debug';
 	
 			$options = getopt(implode('', array_keys($params)) );
 			/* Remove opts from argv */
@@ -46,7 +48,7 @@ class bbTorrent {
 			unset($argv[0]);
 			$argv = array_merge(array(),$argv);
 			if (isset($options['c']) && !empty($options['c'])) {
-			        $config_file = $options['c'];
+				$config_file = $options['c'];
 			}
 		}
 		if (!file_exists($config_file)) {
@@ -72,7 +74,7 @@ class bbTorrent {
 		$defaultConfig = array(
 			'global' => array(
 				'log_file'  => '',
-				'log_level' => '',
+				'log_level' => 0,
 				'debug'     => 0
 			),
 			'database' => array(
@@ -113,10 +115,24 @@ class bbTorrent {
 			$config['global']['log_file'] = $options['l'];
 		if (isset($options['v']))
 			$config['global']['verbose'] = 1;
+		if (isset($options['d']))
+			$config['global']['debug'] = 1;
 		
+		switch((int)$config['global']['log_level']) {
+		case 0:
+			$config['global']['log_level'] = E_ALL; break;
+		default:
+		case 1:
+			$config['global']['log_level'] = E_USER_NOTICE; break;
+		case 2:
+			$config['global']['log_level'] = E_USER_WARNING; break;
+		case 3:
+			$config['global']['log_level'] = E_USER_ERROR; break;
+		}
 		
 		setlocale( LC_ALL, $config['global']['locale'] );
 		$this->config = $config;
+		$this->debug = $config['global']['debug'];
 	}
 	
 	public function getConfig($section, $key = false) {
@@ -151,6 +167,10 @@ class bbTorrent {
 	}
 
 	public function log($str, $level = E_ALL) {
+		$loglevel = $this->getConfig('global','log_level');
+		if ($loglevel < $level) {
+			return;
+		}
 		$loglevelstr = 'INFO';
 		if ($level <= E_USER_NOTICE)
 			$loglevelstr = 'NOTICE';
@@ -172,7 +192,6 @@ class bbTorrent {
         	echo $logline . "\n";
         }
 	}
-	
 	
 	public function shutdown() {
 		$this->log("Done");
@@ -451,6 +470,10 @@ class bbTorrent {
 	}
 	public function isCli() {
 		return (php_sapi_name() == 'cli' && empty($_SERVER['REMOTE_ADDR']));
+	}
+	
+	public function isAjax() {
+		return !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strstr(strtolower($_SERVER['HTTP_X_REQUESTED_WITH']),'xmlhttprequest');
 	}
 	
 	

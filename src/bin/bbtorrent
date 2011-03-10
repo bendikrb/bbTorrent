@@ -131,6 +131,13 @@ function help_text($section = '') {
 		echo " $ bbtorrent checkout\n";
  		echo " $ bbtorrent checkout torrentleech\n";
 		break;
+	
+	case 'addshow':
+		
+		echo " EXAMPLES:\n\n";
+		echo " $ bbtorrent addshow dexter\n";
+		echo " $ bbtorrent addshow dexter "south park" lost\n";
+		break;
 		
 	default:
 		echo "Usage:\t";
@@ -147,6 +154,7 @@ function help_text($section = '') {
 //		echo "   unpack<from>              Unpack all archives in <from>\n";
 //		echo "   unpack<from><target>      Unpack all archives in <from> to <target>\n";
 		echo "   checkout                  Checks out all rss feeds\n";
+		echo "   addshow<title>            Adds the show <title> directly to database and syncs it\n";
 		echo "\n";
 		echo "   help <command>            Prints extended help\n";
 	

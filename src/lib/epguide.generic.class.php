@@ -18,7 +18,6 @@ class epguide {
 	
 	var $_syncstatus = array();
 	
-	
 	public function __construct(&$bbtorrent) {
 		$this->bbtorrent =& $bbtorrent;
 	}
@@ -37,7 +36,11 @@ class epguide {
 			return $shows;
 		}
 		$db_link =& $this->bbtorrent->_db;
-		$res = mysql_query("SELECT * FROM epguide_shows", $db_link);
+		
+		$query = "SELECT * FROM epguide_shows";
+		$res = mysql_query($query, $db_link);
+		if ($this->bbtorrent->debug)
+			$this->bbtorrent->log("SQL: $query");
 		while ($row = mysql_fetch_assoc($res)) {
 			$shows[$row['id']] = $row['title'];
 			$shows_data[$row['id']] = $row;
@@ -76,6 +79,8 @@ class epguide {
 		" . ($limit!==false ? 'LIMIT '.$limit : '') . "
 		", $from, $to);
 		$res = mysql_query($query, $db_link);
+		if ($this->bbtorrent->debug)
+			$this->bbtorrent->log("SQL: $query");
 		while ($row = mysql_fetch_assoc($res)) {
 			$row['time'] += $row['time_offset'];
 			$date = mktime(0,0,0, date('m', $row['time']), date('d', $row['time']), date('y', $row['time']) );
@@ -167,7 +172,10 @@ class epguide {
 		$episode = $ep[1];
 		
 		$db_link =& $this->bbtorrent->_db;
-		$res = mysql_query("SELECT * FROM epguide_episodes WHERE show_id = '" . $show_id . "' AND season = '$season' AND episode = '$episode' LIMIT 1", $db_link);
+		$query = "SELECT * FROM epguide_episodes WHERE show_id = '" . $show_id . "' AND season = '$season' AND episode = '$episode' LIMIT 1";
+		$res = mysql_query($query, $db_link);
+		if ($this->bbtorrent->debug)
+			$this->bbtorrent->log("SQL: $query");
 		if (mysql_num_rows($res) > 0) {
 			$row = mysql_fetch_assoc($res);
 			return $row;
@@ -316,6 +324,8 @@ class epguide {
 		
 		$query = "SELECT * FROM epguide_episodes WHERE show_id = '$show_id' AND season='" . $meta['season'] . "' AND episode='" . $meta['episode'] . "'";
 		$res = mysql_query($query, $db_link);
+		if ($this->bbtorrent->debug)
+			$this->bbtorrent->log("SQL: $query");
 		if (mysql_num_rows($res) > 0) {
 			$row = mysql_fetch_assoc($res);
 			
@@ -381,6 +391,8 @@ class epguide {
 				$query = "UPDATE epguide_episodes SET ";
 				$query .= implode(', ', $query_updates);
 				$query .= " WHERE id = '$episode_id'";
+				if ($this->bbtorrent->debug)
+					$this->bbtorrent->log("SQL: $query");
 				if (!mysql_query($query, $db_link)) {
 					$this->bbtorrent->setError("SQL: " . mysql_error($db_link) );
 				}
@@ -417,6 +429,8 @@ class epguide {
 				mysql_escape_string($meta['trailer']),
 				$meta['thetvdb_episode_id']
 			);
+			if ($this->bbtorrent->debug)
+					$this->bbtorrent->log("SQL: $query");
 			if (!mysql_query($query, $db_link)) {
 				$this->bbtorrent->setError("SQL: " . mysql_error($db_link) );
 				return -1;
@@ -459,6 +473,8 @@ class epguide {
 			time(),
 			$thetvdb_series_id
 		);
+		if ($this->bbtorrent->debug)
+			$this->bbtorrent->log("SQL: $query");
 		if (!mysql_query($query, $db_link)) {
 			$this->bbtorrent->setError("SQL: " . mysql_error($db_link) );
 			return -1;
@@ -491,7 +507,10 @@ class epguide {
 		}
 		$db_link =& $this->bbtorrent->_db;
 		
-		$res = mysql_query( sprintf("SELECT * FROM epguide_shows WHERE title LIKE '%s'", mysql_escape_string($show_title)), $db_link );
+		$query = sprintf("SELECT * FROM epguide_shows WHERE title LIKE '%s'", mysql_escape_string($show_title));
+		$res = mysql_query($query, $db_link );
+		if ($this->bbtorrent->debug)
+			$this->bbtorrent->log("SQL: $query");
 		if (mysql_num_rows($res) > 0) {
 			$show_data = mysql_fetch_assoc($res);
 			mysql_query("UPDATE epguide_shows SET lastrun = UNIX_TIMESTAMP() WHERE id='$show_id'", $db_link);
@@ -508,6 +527,21 @@ class epguide {
 			
 			return $show_data;
 		}
+		return false;
+	}
+	
+	
+	public function getEpisodeData($episode_id) {
+		$db_link =& $this->bbtorrent->_db;
+		
+		$query = sprintf("SELECT * FROM epguide_episodes WHERE id = '%s'", (int)$episode_id);
+		if ($this->bbtorrent->debug)
+			$this->bbtorrent->log("SQL: $query");
+		$res = mysql_query($query, $db_link);
+		if (mysql_num_rows($res) > 0) {
+			$row = mysql_fetch_assoc($res);
+			$row['thetvdb_data'] = ($row['thetvdb_episode_id'] ? $this->theTvDbGetEpisodeData($row['thetvdb_episode_id']) : null);
+		} 
 		return false;
 	}
 	
@@ -566,7 +600,12 @@ class epguide {
 	var $_thetvdb_mirror_url;
 	var $_thetvdb_update_data;
 	
+	/**
+	 * Enter description here ...
+	 */
 	public function theTvDbInit() {
+		if (!$this->bbtorrent->isCli())
+			return;
 		
 		$rss = new rss_php;
 		/* Get a list of mirrors */
@@ -609,6 +648,12 @@ class epguide {
 		}
 	}
 	
+	/**
+	 * Enter description here ...
+	 * @param unknown_type $series_id
+	 * @param unknown_type $force
+	 * @return multitype:multitype: 
+	 */
 	public function theTvDbGetSeriesData($series_id, $force = false) {
 		$data_path = $this->bbtorrent->getConfig('epguide', 'data_path');
 		
@@ -677,6 +722,11 @@ class epguide {
 	}
 	
 	
+	/**
+	 * Enter description here ...
+	 * @param unknown_type $show_title
+	 * @return number
+	 */
 	public function theTvDbGetSeriesId($show_title) {
 		$show = array();
 		$DOMDocument = new DOMDocument;
@@ -694,6 +744,13 @@ class epguide {
 		return (isset($show['seriesid']) ? $show['seriesid'] : 0);
 	}
 	
+	/**
+	 * Enter description here ...
+	 * @param unknown_type $series_id
+	 * @param unknown_type $season
+	 * @param unknown_type $episodenumber
+	 * @return Ambiguous|number
+	 */
 	public function theTvDbGetEpisodeId($series_id, $season, $episodenumber) {
 		$show_data = $this->theTvDbGetSeriesData($series_id);
 		foreach($show_data['episodes'] as $episode) {
@@ -704,6 +761,12 @@ class epguide {
 		return 0;
 	}
 	
+	/**
+	 * Enter description here ...
+	 * @param unknown_type $episode_id
+	 * @param unknown_type $force
+	 * @return Ambigous <boolean, multitype:>
+	 */
 	public function theTvDbGetEpisodeData($episode_id, $force = false) {
 		
 		$data_path = $this->bbtorrent->getConfig('epguide', 'data_path');
@@ -721,6 +784,9 @@ class epguide {
 				}
 			}
 		}
+		if (!$this->bbtorrent->isCli())
+			return;
+		
 		$this->bbtorrent->log(" Getting episode data from TheTVDB.com...");
 		
 		$url = $this->_thetvdb_mirror_url . '/api/' . THETVDB_API_KEY . '/episodes/' . $episode_id . '/en.xml';
@@ -767,6 +833,10 @@ class epguide {
 		fclose($fp);
 	}
 	
+	/**
+	 * Enter description here ...
+	 * @param unknown_type $timestamp
+	 */
 	public function theTvDbSetTimestamp($timestamp) {
 		$data_path = $this->bbtorrent->getConfig('epguide', 'data_path');
 		$filename = $data_path . '/thetvdb.json';
@@ -779,6 +849,10 @@ class epguide {
 		fclose($fp);
 	}
 	
+	/**
+	 * Enter description here ...
+	 * @return boolean
+	 */
 	public function theTvDbGetTimestamp() {
 		$data_path = $this->bbtorrent->getConfig('epguide', 'data_path');
 		$filename = $data_path . '/thetvdb.json';
@@ -796,6 +870,11 @@ class epguide {
 	
 	
 	
+	/**
+	 * Enter description here ...
+	 * @param unknown_type $series_id
+	 * @return multitype:multitype: 
+	 */
 	private function theTvDbParseSeriesData($series_id) {
 		$data_path = $this->bbtorrent->getConfig('epguide', 'data_path');
 		
@@ -833,6 +912,11 @@ class epguide {
 		);
 	}
 	
+	/**
+	 * Enter description here ...
+	 * @param unknown_type $episode_id
+	 * @return boolean|multitype:
+	 */
 	private function theTvDbParseEpisodeData($episode_id) {
 		$data_path = $this->bbtorrent->getConfig('epguide', 'data_path');
 		
@@ -858,6 +942,10 @@ class epguide {
 	}
 	
 	
+	/**
+	 * Enter description here ...
+	 * @return string
+	 */
 	public function toString() {
 		return '';
 	}
