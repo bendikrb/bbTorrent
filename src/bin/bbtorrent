@@ -136,7 +136,7 @@ function help_text($section = '') {
 		
 		echo " EXAMPLES:\n\n";
 		echo " $ bbtorrent addshow dexter\n";
-		echo " $ bbtorrent addshow dexter "south park" lost\n";
+		echo " $ bbtorrent addshow dexter \"south park\" lost\n";
 		break;
 		
 	default:

@@ -890,7 +890,7 @@ class epguide {
 		foreach($nodes->childNodes as $value) {
 			if (substr($value->nodeName,0,1) == '#')
 				continue;
-			$show_data[$value->nodeName] = $value->textContent;
+			$show_data[strtolower($value->nodeName)] = $value->textContent;
 		}
 		
 		$episodes = array();
@@ -901,7 +901,7 @@ class epguide {
 			foreach($episode->childNodes as $value) {
 				if (substr($value->nodeName,0,1) == '#')
 					continue;
-				$episodes[$episode_id][$value->nodeName] = $value->textContent;
+				$episodes[$episode_id][strtolower($value->nodeName)] = $value->textContent;
 			}
 			$DOMEpisode = DOMDocument::loadXML('<Data>' . $DOMDocument->saveXML($episode) . '</Data>');
 			
@@ -932,12 +932,17 @@ class epguide {
 		$DOMDocument->strictErrorChecking = false;
 		$DOMDocument->load($filename);
 		
-		$nodes = $DOMDocument->getElementsByTagName('Data')->item(0);
+		if ($this->bbtorrent->debug)
+			$this->bbtorrent->log(" Returning nodes from `$filename`...");
+		
+		$nodes = $DOMDocument->getElementsByTagName('Episode')->item(0);
 		$episode_data = array();
 		foreach($nodes->childNodes as $value) {
 			if (substr($value->nodeName,0,1) == '#')
 				continue;
-			$episode_data[$value->nodeName] = $value->textContent;
+			$episode_data[strtolower($value->nodeName)] = $value->textContent;
+			if ($this->bbtorrent->debug)
+				$this->bbtorrent->log(" - node: " . $value->nodeName . ": '" . $value->textContent . "'");
 		}
 		return $episode_data;
 	}

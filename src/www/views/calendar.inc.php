@@ -1,3 +1,19 @@
+<script type="text/javascript">
+var createPopup = function(link) {
+	new Control.Window(link, {
+		position: 'relative',
+ 		className: 'popup',
+ 		offsetTop: 20,
+		closeOnClick: true  
+	});
+}
+var initPopup = function(link) {
+	var windows = Control.Window.windows;
+	windows.each(function(w){
+		w.close();
+	});
+}
+</script>
 <?php
 if (!isset($epguide)) {
 	die();
@@ -54,7 +70,12 @@ while ( $curTime <= $time_end ) {
 			if (time() < $row['time']) {
 				$diff = ' in about ' . distanceOfTimeInWords( time(), $row['time'] );
 			}
-			echo '<li><a href="' . $row['link'] . '" title="' . $text . $diff . '">' . str_compress($text,15) . '</a></li>';
+			echo '<li><a href="/popup/episode/' . $row['id'] . '" onclick="initPopup(this)" id="link_episode_' . $row['id'] . '" title="' . $text . $diff . '">' . str_compress($text,15) . '</a></li>';
+			?>
+			<script type="text/javascript">
+			createPopup('link_episode_<?= $row['id'] ?>');
+			</script>
+			<?php 
 		}
 		echo '</ul>';
 	}
@@ -65,3 +86,5 @@ while ( $curTime <= $time_end ) {
 }
 echo '</table>';
 ?>
+
+
