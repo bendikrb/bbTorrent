@@ -541,6 +541,7 @@ class epguide {
 		if (mysql_num_rows($res) > 0) {
 			$row = mysql_fetch_assoc($res);
 			$row['thetvdb_data'] = ($row['thetvdb_episode_id'] ? $this->theTvDbGetEpisodeData($row['thetvdb_episode_id']) : null);
+			return $row;
 		} 
 		return false;
 	}
