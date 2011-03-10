@@ -21,6 +21,7 @@ CREATE TABLE `epguide_episodes` (
   `source` varchar(255) NOT NULL,
   `link` varchar(255) NOT NULL,
   `trailer` varchar(255) NOT NULL,
+  `thetvdb_episode_id` int(11) NOT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8;
 
@@ -47,6 +48,7 @@ CREATE TABLE `epguide_shows` (
   `auto_download` enum('0','1') NOT NULL,
   `deny_pattern` varchar(255) NOT NULL,
   `time_offset` int(11) NOT NULL,
+  `thetvdb_series_id` int(11) NOT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8;
 
