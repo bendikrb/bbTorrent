@@ -299,6 +299,7 @@ class epguide {
 	public function insertOrUpdate($episode) {
 		$show_data = $this->getShowData($episode['show_title'], true);
 		if (!$show_data) {
+			$this->bbtorrent->log("Unable to get show data for `" . $episode['show_title'] . "`", E_USER_WARNING);
 			return false;
 		}
 		$status = $this->createOrUpdateEpisode($show_data, $episode);
@@ -513,7 +514,10 @@ class epguide {
 			$this->bbtorrent->log("SQL: $query");
 		if (mysql_num_rows($res) > 0) {
 			$show_data = mysql_fetch_assoc($res);
-			mysql_query("UPDATE epguide_shows SET lastrun = UNIX_TIMESTAMP() WHERE id='$show_id'", $db_link);
+			$query = "UPDATE epguide_shows SET lastrun = UNIX_TIMESTAMP() WHERE id='$show_id'";
+			mysql_query($query, $db_link);
+			if ($this->bbtorrent->debug)
+				$this->bbtorrent->log("SQL: $query");
 		} else if ($force) {
 			$show_data = $this->createShow($show_title);
 		}
@@ -666,7 +670,7 @@ class epguide {
 			if (file_exists($data_path.'/series/' . $series_id . '/en.xml')) {
 				if (isset($this->_thetvdb_update_data['series'][$series_id])) {
 					unset($this->_thetvdb_update_data['series'][$series_id]);
-					$this->bbtorrent->log("Series data needs update!");
+					$this->bbtorrent->log("Series `$series_id` data needs update!");
 				} else {
 					return $this->theTvDbParseSeriesData($series_id);
 				}
@@ -845,9 +849,12 @@ class epguide {
 		$data = array('timestamp' => $timestamp);
 		$data = json_encode($data);
 		
-		$fp = fopen($filename, 'w');
-		fwrite($fp, $data);
-		fclose($fp);
+		if ($fp = @fopen($filename, 'w')) {
+			fwrite($fp, $data);
+			fclose($fp);
+		} else {
+			$this->bbtorrent->setError("Unable to open file: `$filename`");
+		}
 	}
 	
 	/**

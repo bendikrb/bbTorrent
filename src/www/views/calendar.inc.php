@@ -70,7 +70,7 @@ while ( $curTime <= $time_end ) {
 			if (time() < $row['time']) {
 				$diff = ' in about ' . distanceOfTimeInWords( time(), $row['time'] );
 			}
-			echo '<li><a href="/popup/episode/' . $row['id'] . '" onclick="initPopup(this)" id="link_episode_' . $row['id'] . '" title="' . $text . $diff . '">' . str_compress($text,15) . '</a></li>';
+			echo '<li><a href="' . $site_path . '/popup/episode/' . $row['id'] . '" onclick="initPopup(this)" id="link_episode_' . $row['id'] . '" title="' . $text . $diff . '">' . str_compress($text,15) . '</a></li>';
 			?>
 			<script type="text/javascript">
 			createPopup('link_episode_<?= $row['id'] ?>');

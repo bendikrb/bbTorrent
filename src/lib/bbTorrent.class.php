@@ -22,8 +22,8 @@ class bbTorrent {
 	public function init($argv = array()) {
 		$config_file = BBTORRENT_DEFAULT_CONFIG;
 		
+		$options = array();
 		if ($this->isCli()) {
-			
 			$params = array();
 			$params['c::'] = 'Config';
 			$params['v'] = 'Verbose';

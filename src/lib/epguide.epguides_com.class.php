@@ -98,7 +98,8 @@ class epguideEpguidesCom extends epguide {
 			/* We assume they all air at 20:00 */
 			/* We also assume U.S. Central time zone */
 			$date = new DateTime($ep['date'] . ' 20:00:00', new DateTimeZone('US/Central'));
-			$ep['time'] = $date->getTimestamp();
+			//$ep['time'] = $date->getTimestamp();
+			$ep['time'] = $date->format('U');
 		} catch(Exception $e) {
 			//$this->bbtorrent->log($ep['date'] . ' 20:00:00', E_USER_WARNING);
 		}

@@ -68,9 +68,9 @@ case 'addshow':
 	}
 	array_shift($argv);
 	foreach($argv as $key=>$val) {
-		$argv[$key] = strtolower($val);
+		$val = strtolower($val);
 		$epguide->getShowData($val, true);
-		$epguide->sync($val);
+		$epguide->sync(array($val));
 	}
 	break;
 	
