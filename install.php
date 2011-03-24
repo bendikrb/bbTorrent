@@ -16,7 +16,8 @@ $DB_CONF = array(
 	'hostname' => 'localhost',
 	'username' => 'bbtorrent',
 	'password' => '',
-	'database' => 'bbtorrent'
+	'database' => 'bbtorrent',
+	'setup'    => false
 );
 
 $configured = false;
@@ -60,39 +61,44 @@ while (!$configured) {
 		$WWW_PATH = '';
 	}
 	echo "\n";
-	echo "Please enter your database host and credentials..\n";
-	$dbconfigured = false;
-	while (!$dbconfigured) {
-		echo "Hostname [" . $DB_CONF['hostname'] . "]: ";
-		$input = getinput();
-		if (!empty($input)) {
-			$DB_CONF['hostname'] = $input;
-		}
-		echo "Username [" . $DB_CONF['username'] . "]: ";
-		$input = getinput();
-		if (!empty($input)) {
-			$DB_CONF['username'] = $input;
-		}
-		echo "Password [" . $DB_CONF['password'] . "]: ";
-		$input = getinput();
-		if (!empty($input)) {
-			$DB_CONF['password'] = $input;
-		}
-		echo "Database name [" . $DB_CONF['database'] . "]: ";
-		$input = getinput();
-		if (!empty($input)) {
-			$DB_CONF['database'] = $input;
-		}
-		
-		if (@mysql_connect($DB_CONF['hostname'], $DB_CONF['username'], $DB_CONF['password'])) {
-			if (@mysql_select_db($DB_CONF['database'])) {
-				$dbconfigured = true;
+	echo "Do you want me to setup database structure? [yes|no]: ";
+	$input = getinput();
+	if ($input == 'yes') {
+		echo "Please enter your database host and credentials..\n";
+		$dbconfigured = false;
+		while (!$dbconfigured) {
+			echo "Hostname [" . $DB_CONF['hostname'] . "]: ";
+			$input = getinput();
+			if (!empty($input)) {
+				$DB_CONF['hostname'] = $input;
 			}
-		}
-		
-		if (!$dbconfigured) {
-			echo "\nCannot connect using provided crendetials: " . mysql_error() . "\n";
-			echo "\n";
+			echo "Username [" . $DB_CONF['username'] . "]: ";
+			$input = getinput();
+			if (!empty($input)) {
+				$DB_CONF['username'] = $input;
+			}
+			echo "Password [" . $DB_CONF['password'] . "]: ";
+			$input = getinput();
+			if (!empty($input)) {
+				$DB_CONF['password'] = $input;
+			}
+			echo "Database name [" . $DB_CONF['database'] . "]: ";
+			$input = getinput();
+			if (!empty($input)) {
+				$DB_CONF['database'] = $input;
+			}
+			
+			if (@mysql_connect($DB_CONF['hostname'], $DB_CONF['username'], $DB_CONF['password'])) {
+				if (@mysql_select_db($DB_CONF['database'])) {
+					$dbconfigured = true;
+					$DB_CONF['setup'] = true;
+				}
+			}
+			
+			if (!$dbconfigured) {
+				echo "\nCannot connect using provided crendetials: " . mysql_error() . "\n";
+				echo "\n";
+			}
 		}
 	}
 	echo "\n";
@@ -103,9 +109,11 @@ while (!$configured) {
 	if (!empty($WWW_PATH)) {
 		echo "- `$WWW_PATH`\n";
 	}
-	echo "Database:\n";
-	echo "- Username: " . $DB_CONF['username'] . "\n";
-	echo "- Database: " . $DB_CONF['database'] . "\n";
+	if ($DB_CONF['setup']) {
+		echo "Database:\n";
+		echo "- Username: " . $DB_CONF['username'] . "\n";
+		echo "- Database: " . $DB_CONF['database'] . "\n";
+	}
 	echo "\n";
 	
 	echo "Proceed with this configuration? [yes|no]: ";
@@ -194,12 +202,13 @@ function install() {
 			copy($srcfile, $dstfile);
 		}
 	}
+	if ($DB_CONF['setup']) {
+		echo "Installing database...\n";
 	
-	echo "Installing database...\n";
-	
-	$cmd = 'mysql -h' . $DB_CONF['hostname'] . ' -u' . $DB_CONF['username'] . ' -p' . $DB_CONF['password'] . " " . $DB_CONF['database'] . ' < ';
-	$cmd .= $MY_PATH.'/src/bbtorrent.sql';
-	exec($cmd);
+		$cmd = 'mysql -h' . $DB_CONF['hostname'] . ' -u' . $DB_CONF['username'] . ' -p' . $DB_CONF['password'] . " " . $DB_CONF['database'] . ' < ';
+		$cmd .= $MY_PATH.'/src/bbtorrent.sql';
+		exec($cmd);
+	}
 	
 	echo "Installing config...\n";
 	$srcfile = $MY_PATH . '/src/bbtorrent.conf';
@@ -208,13 +217,15 @@ function install() {
 	copy($srcfile, $dstfile);
 	
 	echo "\nAll done!\n";
-	echo "Please update database section of your config file:\n";
-	echo "  [database]\n";
-	echo "    host     = \"" . $DB_CONF['hostname'] . "\"\n";
-	echo "    username = \"" . $DB_CONF['username'] . "\"\n";
-	echo "    password = \"" . $DB_CONF['password'] . "\"\n";
-	echo "    database = \"" . $DB_CONF['database'] . "\"\n";
-	echo "\n";
+	if ($DB_CONF['setup']) {
+		echo "Please update database section of your config file:\n";
+		echo "  [database]\n";
+		echo "    host     = \"" . $DB_CONF['hostname'] . "\"\n";
+		echo "    username = \"" . $DB_CONF['username'] . "\"\n";
+		echo "    password = \"" . $DB_CONF['password'] . "\"\n";
+		echo "    database = \"" . $DB_CONF['database'] . "\"\n";
+		echo "\n";
+	}
 	
 }
 
