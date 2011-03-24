@@ -9,7 +9,7 @@ $MY_PATH = dirname(__FILE__);
 $LIB_PATH = '/usr/share/php';
 $BIN_PATH = '/usr/local/bin';
 $WWW_PATH = '/var/www/epguide';
-$DATA_PTH = '/var/www/epguide_data';
+$DATA_PATH = '/var/www/epguide_data';
 $CONF_PATH = '/etc/bbtorrent.conf';
 
 $DB_CONF = array(
