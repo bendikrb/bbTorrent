@@ -3,6 +3,14 @@
 if (getenv('USER') != 'root') {
 	die("Needs to be run as root!\n");
 }
+/* Check dependencies */
+if (!function_exists('mysql_connect')) {
+	die("MySQL is not installed!\n");
+}
+if (!class_exists('DateTime')) {
+	die("Required library `DateTime` not installed\n");
+}
+
 
 $MY_PATH = dirname(__FILE__);
 
@@ -146,17 +154,25 @@ function install() {
 		$MY_PATH.'/src/bin/bbtorrent' => ''
 	);
 	$src_files['www'] = array(
-		$MY_PATH.'/src/www/index.php'               => '',
-		$MY_PATH.'/src/www/functions.inc.php'       => '',
-		$MY_PATH.'/src/www/css/style.css'           => '/css',
-		$MY_PATH.'/src/www/gfx/bg_body.png'         => '/gfx',
-		$MY_PATH.'/src/www/gfx/bg_menu_c.png'       => '/gfx',
-		$MY_PATH.'/src/www/gfx/bg_menu_l.png'       => '/gfx',
-		$MY_PATH.'/src/www/gfx/bg_menu_r.png'       => '/gfx',
-		$MY_PATH.'/src/www/views/default.inc.php'   => '/views',
-		$MY_PATH.'/src/www/views/calendar.inc.php'  => '/views',
-		$MY_PATH.'/src/www/views/log.inc.php'       => '/views',
-		$MY_PATH.'/src/www/views/settings.inc.php'  => '/views'
+		$MY_PATH.'/src/www/htaccess'                           => '',
+		$MY_PATH.'/src/www/index.php'                          => '',
+		$MY_PATH.'/src/www/functions.inc.php'                  => '',
+		$MY_PATH.'/src/www/css/style.css'                      => '/css',
+		$MY_PATH.'/src/www/css/popup.css'                      => '/css',
+		$MY_PATH.'/src/www/gfx/bg_body.png'                    => '/gfx',
+		$MY_PATH.'/src/www/gfx/bg_menu_c.png'                  => '/gfx',
+		$MY_PATH.'/src/www/gfx/bg_menu_l.png'                  => '/gfx',
+		$MY_PATH.'/src/www/gfx/bg_menu_r.png'                  => '/gfx',
+		$MY_PATH.'/src/www/views/default.inc.php'              => '/views',
+		$MY_PATH.'/src/www/views/calendar.inc.php'             => '/views',
+		$MY_PATH.'/src/www/views/log.inc.php'                  => '/views',
+		$MY_PATH.'/src/www/views/settings.inc.php'             => '/views',
+		
+		$MY_PATH.'/src/www/js/prototype.js'			           => '/js',
+		$MY_PATH.'/src/www/js/livepipe-ui/livepipe.js'         => '/js/livepipe-ui',
+		$MY_PATH.'/src/www/js/livepipe-ui/window.js'           => '/js/livepipe-ui',
+		$MY_PATH.'/src/www/js/scriptaculous/scriptaculous.js'  => '/js/scriptaculous',
+		$MY_PATH.'/src/www/js/scriptaculous/effects.js'        => '/js/scriptaculous'
 	);
 	
 	echo "Installing libraries...\n";
@@ -195,7 +211,7 @@ function install() {
 		foreach($src_files['www'] as $srcfile => $dir) {
 			$dstdir = $WWW_PATH . $dir;
 			if (!file_exists($dstdir)) {
-				mkdir($dstdir);
+				mkdir($dstdir, 0755, true);
 			}
 			$dstfile = $dstdir . '/' . basename($srcfile);
 			echo "  `".basename($srcfile) . "` -> `$dstfile`\n";
@@ -211,25 +227,98 @@ function install() {
 	}
 	
 	echo "Installing config...\n";
-	$srcfile = $MY_PATH . '/src/bbtorrent.conf';
-	$dstfile = $CONF_PATH;
-	echo "  `".basename($srcfile) . "` -> `$dstfile`\n";
-	copy($srcfile, $dstfile);
+	$config = getConfig();
+	$fp = fopen($CONF_PATH, 'w');
+	fwrite($fp, $config);
+	fclose($fp);
 	
 	echo "\nAll done!\n";
-	if ($DB_CONF['setup']) {
-		echo "Please update database section of your config file:\n";
-		echo "  [database]\n";
-		echo "    host     = \"" . $DB_CONF['hostname'] . "\"\n";
-		echo "    username = \"" . $DB_CONF['username'] . "\"\n";
-		echo "    password = \"" . $DB_CONF['password'] . "\"\n";
-		echo "    database = \"" . $DB_CONF['database'] . "\"\n";
-		echo "\n";
-	}
-	
 }
 
 function getinput() {
 	$str = fread(STDIN, 1024);
 	return str_replace("\n", '', trim($str));
+}
+
+
+function getConfig() {
+	global $DATA_PATH,$DB_CONF;
+$conf = '
+;
+; bbTorrent config
+;
+[global]
+  log_file = "/tmp/bbtorrent.log"
+;; 0: INFO
+;; 1: NOTICE
+;; 2: WARNING
+;; 3: ERROR
+  log_level = 0
+  debug    = 0
+  verbose  = 0
+  locale   = "nb_NO.utf8"
+
+[database]
+  host     = "' . $DB_CONF['hostname'] . '"
+  username = "' . $DB_CONF['username'] . '"
+  password = "' . $DB_CONF['password'] . '"
+  database = "' . $DB_CONF['database'] . '"
+
+[unpack]
+  enabled        = 1
+  target         = "/media/video"
+  watchfolder    = "/home/torrent/.watch"
+;  chmod          = "0775"
+;  chown          = "www-data.www-data"
+  extract_cmd    = "unrar e %from% %to%"
+  rename         = 1
+
+;; %1 = season (int)
+;; %2 = episode (int)
+;; %3 = episode title (string)
+;; %4 = show title (string)
+  rename_pattern = "%1$d%2$02d - %3$s"
+
+;; Use sudo for mkdir/mv/extract_cmd.. Make sure it doesn\'t ask for password!
+  sudo           = 0
+
+[rssfeeds]
+  enabled     = 1
+  tracker[]   = "torrentleech"
+  tracker[]   = "norbits"
+
+[tracker_torrentleech]
+   name = "torrentleech"
+   url  = "http://rss.torrentleech.org/your_hash"
+   mark = "/tmp/tl-rss-mark"
+
+[tracker_norbits]
+   name = "norbits"
+   url  = "http://www.norbits.net/rss.php"
+   mark = "/tmp/norbits-rss-mark"
+
+[epguide]
+
+   data_path = "' . $DATA_PATH . '"
+
+;; epguides.com
+;; 
+;; Parses epguides.com/(show_name) for all shows defined in `epguide_shows` table
+;; the `alias` column is used if no match is found (i.e. alias "Lost" for "Lost (2001)")
+;; No further config needed
+;; 
+  name        = "epguides_com"
+
+;;
+;; www.myepisodes.com
+;; 1) Sign up (for free)
+;; 2) Set up your shows (My shows -> Change My Shows List)
+;; 3) Set your time zone to US/Central (Profile -> Control Panel)
+;;
+
+;  name        = "my_episodes"
+;  uid         = "uid"
+;  hash        = "00000000000000000000000000000000"
+';
+	return $conf;
 }
